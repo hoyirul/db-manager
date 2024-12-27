@@ -1,0 +1,86 @@
+{% extends 'layouts/main.html' %}
+
+{% block content %}
+  <!-- make title and button for hyperlink -->
+  <h2 class="mb-4 float-left">{{ data.title }}</h2>
+  <!-- flash -->
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <br>
+      <div class="alert alert-success mt-4 mx-2" role="alert">
+        {{ messages[0] }}
+      </div>
+    {% endif %}
+  {% endwith %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th width="50px" class="text-center">#</th>
+        <th>Role</th>
+        <th>Superuser</th>
+        <th>CreateRole</th>
+        <th>CreateDB</th>
+        <th>CanLogin</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.roles %}
+        <tr>
+          <th scope="row" class="text-center">{{ loop.index }}</th>
+          <td>{{ item['rolname'] }}</td>
+          <td>
+            <!-- if item['usecreatedb'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
+            {% if item['rolsuper'] %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-success">Yes</span>
+            {% else %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-danger">No</span>
+            {% endif %}
+          </td>
+          <td>
+            <!-- if item['usesuper'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
+            {% if item['rolcreaterole'] %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-success">Yes</span>
+            {% else %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-danger">No</span>
+            {% endif %}
+          </td>
+          <td>
+            <!-- if item['usesuper'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
+            {% if item['rolcreatedb'] %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-success">Yes</span>
+            {% else %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-danger">No</span>
+            {% endif %}
+          </td>
+          <td>
+            <!-- if item['usesuper'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
+            {% if item['rolcanlogin'] %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-success">Yes</span>
+            {% else %}
+              <!-- with badge -->
+              <span class="badge text-white px-4 py-2 bg-danger">No</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if item['rolname'] != 'postgres' %}
+              <a href="/roles/{{ item['rolname'] }}/grant" class="btn btn-sm btn-info">Permissions</a>
+            {% else %}
+              <span class="badge text-white px-4 py-2 bg-secondary">Default</span>
+            {% endif %}
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="7">No data</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

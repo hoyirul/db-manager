@@ -1,0 +1,50 @@
+{% extends 'layouts/main.html' %}
+
+{% block content %}
+  <!-- make title and button for hyperlink -->
+  <h2 class="mb-4 float-left">{{ data.title }}</h2>
+  <a href="/databases/create" class="btn btn-primary float-right">Create Database</a>
+  <!-- flash -->
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <br>
+      <div class="alert alert-success mt-4 mx-2" role="alert">
+        {{ messages[0] }}
+      </div>
+    {% endif %}
+  {% endwith %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th width="50px" class="text-center">#</th>
+        <th>Database</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.databases %}
+        <tr>
+          <th scope="row" class="text-center">{{ loop.index }}</th>
+          <td>{{ item['datname'] }}</td>
+          <td>
+            <a href="/databases/{{ item['datname'] }}/tables" class="btn btn-sm btn-info">Tables</a>
+            {% if item['datname'] != 'postgres' %}
+              <!-- with form POST -->
+              <form action="/databases" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?')">
+                <input type="hidden" name="db_name" value="{{ item['datname'] }}">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+              </form>
+            {% else %}
+              <span class="badge text-white px-4 py-2 bg-secondary">Default</span>
+            {% endif %}
+
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="3" class="text-center">No data</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

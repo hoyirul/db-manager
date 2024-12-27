@@ -1,0 +1,26 @@
+{% extends 'layouts/main.html' %}
+
+{% block content %}
+  <!-- make title and button for hyperlink -->
+  <h2 class="float-left mb-2">{{ data.title }}</h2>
+  <a href="/databases" class="btn btn-primary float-right mb-2">Back</a>
+  
+  <br>
+  <form action="/databases/create" method="POST" class="mt-5">
+    <!-- owner -->
+    <div class="mb-3">
+      <label for="owner" class="form-label">Owner</label>
+      <select class="form-control" id="owner" name="owner" required>
+        <option value="">Select Owner</option>
+        {% for user in data.users %}
+          <option value="{{ user.usename }}">{{ user.usename }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label for="db_name" class="form-label">Name</label>
+      <input type="text" class="form-control" id="db_name" name="db_name" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Submit</button>
+  </form>
+{% endblock %}

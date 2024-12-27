@@ -1,0 +1,40 @@
+{% extends 'layouts/main.html' %}
+
+{% block content %}
+  <!-- make title and button for hyperlink -->
+  <h2 class="mb-4 float-left">{{ data.title }}</h2>
+  <a href="/roles" class="btn btn-primary float-right">Back</a>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <br>
+      <div class="alert alert-success mt-4 mx-2" role="alert">
+        {{ messages[0] }}
+      </div>
+    {% endif %}
+  {% endwith %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th width="50px" class="text-center">#</th>
+        <th>Database</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.databases %}
+        <tr>
+          <th scope="row" class="text-center">{{ loop.index }}</th>
+          <td>{{ item['datname'] }}</td>
+          <td>
+            <a href="/roles/{{ data.role_name }}/{{ item['datname'] }}/grant" class="btn btn-sm btn-success">Grant</a>
+            <a href="/roles/{{ data.role_name }}/{{ item['datname'] }}/revoke" class="btn btn-sm btn-danger">Revoke</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="3" class="text-center">No data</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

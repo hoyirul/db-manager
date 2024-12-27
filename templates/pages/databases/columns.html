@@ -1,0 +1,29 @@
+{% extends 'layouts/main.html' %}
+
+{% block content %}
+  <!-- make title and button for hyperlink -->
+  <h2 class="mb-4 float-left">{{ data.title }}</h2>
+  <a href="/databases/{{ data.db_name }}/tables" class="btn btn-primary float-right">Back</a>
+  <table class="table">
+    <thead>
+      <tr>
+        <th width="50px" class="text-center">#</th>
+        <th>Column Name</th>
+        <th>Data Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.columns %}
+        <tr>
+          <th scope="row" class="text-center">{{ loop.index }}</th>
+          <td>{{ item['column_name'] }}</td>
+          <td>{{ item['data_type'] }}</td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="3" class="text-center">No data</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
