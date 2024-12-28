@@ -1,10 +1,19 @@
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from middleware import AuthMiddleware
+from flask_wtf import CSRFProtect
+from flask_cors import CORS
 
 app = Flask(__name__)
 # hex key untuk session
 app.secret_key = "secret_key"
+
+csrf = CSRFProtect(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "DELETE"])
+
+# Middleware untuk memeriksa apakah user sudah login atau belum
+auth = AuthMiddleware()
 
 # Fungsi untuk membuat koneksi ke database PostgreSQL
 def create_connection():
@@ -12,14 +21,60 @@ def create_connection():
         host="localhost",  # Ganti dengan host PostgreSQL kamu
         database="postgres",  # Ganti dengan nama database
         user="mochammadhairullah",  # Ganti dengan username DB
-        password="root1234"  # Ganti dengan password DB
+        password="password"  # Ganti dengan password DB
     )
 
+@app.route('/login', methods=['GET', 'POST'])
+@auth.unauthorized
+def login():
+    if request.method == 'POST':
+        try:
+            host = request.form['host']
+            port = request.form['port']
+            database = request.form['database']
+            username = request.form['username']
+            password = request.form['password']
+
+            conn = psycopg2.connect(
+                host=host,
+                port=port,
+                database=database,
+                user=username,
+                password=password
+            )
+
+            # jika berhasil terhubung maka simpan ke session jika tidak maka munculkan errornya
+            if conn:
+                flash("Connected successfully", "success")
+                session['logged_in'] = True
+                session['host'] = host
+                session['port'] = port
+                session['database'] = database
+                session['username'] = username
+                session['password'] = password
+                # return to home
+                return redirect(url_for('main'))
+            else:
+                flash("Error connecting to database", "danger")
+        except Exception as e:
+            flash(str(e), "danger")
+
+    return render_template('pages/auth/login.html')
+
+@app.route('/logout', methods=['POST'])
+@auth.authorized
+def logout():
+    session.clear()
+    flash("Logged out successfully", "warning")
+    return redirect(url_for('login'))
+
 @app.route('/', methods=['GET'])
+@auth.authorized
 def main():
     return render_template('pages/home/index.html')
 
 @app.route('/users', methods=['GET', 'POST'])
+@auth.authorized
 def users():
     # can view and delete users
     if request.method == 'POST':
@@ -53,6 +108,7 @@ def users():
     return render_template('pages/users/index.html', data=data)
 
 @app.route('/users/create', methods=['GET', 'POST'])
+@auth.authorized
 def create_user():
     if request.method == 'POST':
         username = request.form['username']
@@ -86,6 +142,7 @@ def create_user():
     return render_template('pages/users/create.html', data=data)
 
 @app.route('/users/<username>/edit', methods=['GET', 'POST'])
+@auth.authorized
 def edit_user(username):
     conn = create_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -228,7 +285,7 @@ def tables(db_name):
         host="localhost",
         database=db_name,
         user="mochammadhairullah",
-        password="root1234"
+        password="password"
     )
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
@@ -251,7 +308,7 @@ def columns(db_name, table_name):
         host="localhost",
         database=db_name,
         user="mochammadhairullah",
-        password="root1234"
+        password="password"
     )
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}'")

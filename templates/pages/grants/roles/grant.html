@@ -4,12 +4,13 @@
   <!-- make title and button for hyperlink -->
   <h2 class="mb-4 float-left">{{ data.title }}</h2>
   <a href="/roles" class="btn btn-primary float-right">Back</a>
-  {% with messages = get_flashed_messages() %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <br>
-      <div class="alert alert-success mt-4 mx-2" role="alert">
-        {{ messages[0] }}
-      </div>
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
     {% endif %}
   {% endwith %}
   <table class="table">

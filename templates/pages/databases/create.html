@@ -7,6 +7,8 @@
   
   <br>
   <form action="/databases/create" method="POST" class="mt-5">
+    <!-- CSRF Token -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <!-- owner -->
     <div class="mb-3">
       <label for="owner" class="form-label">Owner</label>

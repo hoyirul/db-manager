@@ -1,71 +1,74 @@
 {% extends 'layouts/main.html' %}
 
 {% block content %}
-  <!-- make title and button for hyperlink -->
+<!-- make title and button for hyperlink -->
+<div class="clearfix">
   <h2 class="mb-4 float-left">{{ data.title }}</h2>
   <a href="/users/create" class="btn btn-primary float-right">Create User</a>
-  <!-- flash -->
-  {% with messages = get_flashed_messages() %}
-    {% if messages %}
-      <br>
-      <div class="alert alert-success mt-4 mx-2" role="alert">
-        {{ messages[0] }}
-      </div>
-    {% endif %}
-  {% endwith %}
-  <table class="table">
-    <thead>
-      <tr>
-        <th width="50px" class="text-center">#</th>
-        <th>Username</th>
-        <th>Create DB</th>
-        <th>Superuser</th>
-        <th>Password</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in data.users %}
-        <tr>
-          <th scope="row" class="text-center">{{ loop.index }}</th>
-          <td>{{ item['usename'] }}</td>
-          <td>
-            <!-- if item['usecreatedb'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
-            {% if item['usecreatedb'] %}
-              <!-- with badge -->
-              <span class="badge text-white px-4 py-2 bg-success">Yes</span>
-            {% else %}
-              <!-- with badge -->
-              <span class="badge text-white px-4 py-2 bg-danger">No</span>
-            {% endif %}
-          </td>
-          <td>
-            <!-- if item['usesuper'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
-            {% if item['usesuper'] %}
-              <!-- with badge -->
-              <span class="badge text-white px-4 py-2 bg-success">Yes</span>
-            {% else %}
-              <!-- with badge -->
-              <span class="badge text-white px-4 py-2 bg-danger">No</span>
-            {% endif %}
-          </td>
-          <td>{{ item['passwd'] }}</td>
-          <td>
-            <a href="/users/{{ item['usename'] }}/edit" class="btn btn-sm btn-primary">Edit</a>
-            {% if loop.index != 1 %}
-              <!-- with form POST -->
-              <form action="/users" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?')">
-                <input type="hidden" name="username" value="{{ item['usename'] }}">
-                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="5">No data</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+</div>
+<!-- flash -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }}" role="alert">
+  {{ message }}
+</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+<table class="table">
+  <thead>
+    <tr>
+      <th width="50px" class="text-center">#</th>
+      <th>Username</th>
+      <th>Create DB</th>
+      <th>Superuser</th>
+      <th>Password</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in data.users %}
+    <tr>
+      <th scope="row" class="text-center">{{ loop.index }}</th>
+      <td>{{ item['usename'] }}</td>
+      <td>
+        <!-- if item['usecreatedb'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
+        {% if item['usecreatedb'] %}
+        <!-- with badge -->
+        <span class="badge text-white px-4 py-2 bg-success">Yes</span>
+        {% else %}
+        <!-- with badge -->
+        <span class="badge text-white px-4 py-2 bg-danger">No</span>
+        {% endif %}
+      </td>
+      <td>
+        <!-- if item['usesuper'] == True maka check jika tika maka uncheck menggunakan bootstrap -->
+        {% if item['usesuper'] %}
+        <!-- with badge -->
+        <span class="badge text-white px-4 py-2 bg-success">Yes</span>
+        {% else %}
+        <!-- with badge -->
+        <span class="badge text-white px-4 py-2 bg-danger">No</span>
+        {% endif %}
+      </td>
+      <td>{{ item['passwd'] }}</td>
+      <td>
+        <a href="/users/{{ item['usename'] }}/edit" class="btn btn-sm btn-primary">Edit</a>
+        {% if loop.index != 1 %}
+        <!-- with form POST -->
+        <form action="/users" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?')">
+          <input type="hidden" name="username" value="{{ item['usename'] }}">
+          <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="5">No data</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}
