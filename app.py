@@ -18,10 +18,12 @@ auth = AuthMiddleware()
 # Fungsi untuk membuat koneksi ke database PostgreSQL
 def create_connection():
     return psycopg2.connect(
-        host="localhost",  # Ganti dengan host PostgreSQL kamu
-        database="postgres",  # Ganti dengan nama database
-        user="mochammadhairullah",  # Ganti dengan username DB
-        password="password"  # Ganti dengan password DB
+        # with session
+        host=session['host'],  # Ganti dengan host DB
+        port=session['port'],  # Ganti dengan port DB
+        database=session['database'],  # Ganti dengan nama DB
+        user=session['username'],  # Ganti dengan username DB
+        password=session['password']  # Ganti dengan password DB
     )
 
 @app.route('/login', methods=['GET', 'POST'])

@@ -4,7 +4,7 @@
       <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="logo" class="img-fluid rounded-circle">
     </a>
     <ul class="list-unstyled components mb-5">
-      <li>
+      <li class="{{ 'active' if request.path == '/' else '' }}">
         <a href="/">Home</a>
       </li>
       <!-- <li class="active">
@@ -21,13 +21,14 @@
           </li>
         </ul>
       </li> -->
-      <li>
+      <!-- Jika depannya users maka active maupun dia users/create tapi depannya user maka akan active -->
+      <li class="{{ 'active' if request.path.startswith('/users') else '' }}">
         <a href="/users">Users</a>
       </li>
-      <li>
+      <li class="{{ 'active' if request.path.startswith('/roles') else '' }}">
           <a href="/roles">Roles</a>
       </li>
-      <li>
+      <li class="{{ 'active' if request.path.startswith('/permissions') else '' }}">
         <a href="/databases">Databases</a>
       </li>
       <li>

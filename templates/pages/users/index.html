@@ -8,13 +8,13 @@
 </div>
 <!-- flash -->
 {% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-{% for category, message in messages %}
-<div class="alert alert-{{ category }}" role="alert">
-  {{ message }}
-</div>
-{% endfor %}
-{% endif %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}" role="alert">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
 {% endwith %}
 <table class="table">
   <thead>
@@ -55,9 +55,11 @@
       <td>{{ item['passwd'] }}</td>
       <td>
         <a href="/users/{{ item['usename'] }}/edit" class="btn btn-sm btn-primary">Edit</a>
-        {% if loop.index != 1 %}
+        {% if not item['usesuper'] %}
         <!-- with form POST -->
         <form action="/users" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?')">
+          <!-- CSRF Token -->
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="username" value="{{ item['usename'] }}">
           <button type="submit" class="btn btn-sm btn-danger">Delete</button>
         </form>

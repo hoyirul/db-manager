@@ -32,6 +32,8 @@
             {% if item['datname'] != 'postgres' %}
               <!-- with form POST -->
               <form action="/databases" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?')">
+                <!-- CSRF Token -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="db_name" value="{{ item['datname'] }}">
                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
               </form>
