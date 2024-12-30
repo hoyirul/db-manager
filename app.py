@@ -16,12 +16,12 @@ CORS(app, resources={r"/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "D
 auth = AuthMiddleware()
 
 # Fungsi untuk membuat koneksi ke database PostgreSQL
-def create_connection():
+def create_connection(database_name=None):
     return psycopg2.connect(
         # with session
         host=session['host'],  # Ganti dengan host DB
         port=session['port'],  # Ganti dengan port DB
-        database=session['database'],  # Ganti dengan nama DB
+        database=session['database'] if database_name == None else database_name,
         user=session['username'],  # Ganti dengan username DB
         password=session['password']  # Ganti dengan password DB
     )
@@ -44,6 +44,16 @@ def login():
                 user=username,
                 password=password
             )
+
+            # check apakah jika superuser atau tidak jika tidak maka muncul flash kalau iya bisa masuk
+            cursor = conn.cursor()
+            cursor.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+            is_superuser = cursor.fetchone()[0]
+            cursor.close()
+
+            if not is_superuser:
+                flash("You are not a superuser", "danger")
+                return render_template('pages/auth/login.html')
 
             # jika berhasil terhubung maka simpan ke session jika tidak maka munculkan errornya
             if conn:
@@ -73,7 +83,33 @@ def logout():
 @app.route('/', methods=['GET'])
 @auth.authorized
 def main():
-    return render_template('pages/home/index.html')
+    try:
+        conn = create_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT current_database()")
+        current_database = cursor.fetchone()['current_database']
+        # count user, roles, databases
+        cursor.execute("SELECT COUNT(*) FROM pg_user")
+        user_count = cursor.fetchone()['count']
+        cursor.execute("SELECT COUNT(*) FROM pg_roles")
+        role_count = cursor.fetchone()['count']
+        cursor.execute("SELECT COUNT(*) FROM pg_database WHERE datname NOT IN ('template0', 'template1')")
+        database_count = cursor.fetchone()['count']
+        cursor.close()
+        conn.close()
+
+        data = {
+            "title": "Home",
+            "current_database": current_database,
+            "user_count": user_count,
+            "role_count": role_count,
+            "database_count": database_count
+        }
+
+        return render_template('pages/home/index.html', data=data)
+    except Exception as e:
+        flash(str(e), "danger")
+        return redirect('/')
 
 @app.route('/users', methods=['GET', 'POST'])
 @auth.authorized
@@ -307,10 +343,11 @@ def tables(db_name):
 @app.route('/databases/<db_name>/tables/<table_name>/columns', methods=['GET'])
 def columns(db_name, table_name):
     conn = psycopg2.connect(
-        host="localhost",
+        host=session['host'],
+        port=session['port'],
         database=db_name,
-        user="mochammadhairullah",
-        password="password"
+        user=session['username'],
+        password=session['password']
     )
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}'")
@@ -329,186 +366,342 @@ def columns(db_name, table_name):
 
     return render_template('pages/databases/columns.html', data=data)
 
-# Memberikan grant permission ke role
-@app.route('/roles/<role_name>/grant', methods=['GET'])
-def grant_role(role_name):
-    conn = create_connection()
+
+@app.route('/databases/<db_name>/grant', methods=['GET', 'POST'])
+def database_permission_grant(db_name):
+    conn = create_connection(database_name=db_name)
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT datname FROM pg_database WHERE datname NOT IN ('template0', 'template1')")
-    databases = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    if request.method == 'POST':
+        # Ambil data dari form
+        role = request.form['role']  # Role yang dipilih
+        privileges = request.form.getlist('privileges')  # Privileges yang dipilih
+        selected_tables = request.form.getlist('tables')  # Tabel yang dipilih
+        grant_option = 'WITH GRANT OPTION' if 'grant_option' in request.form else ''
 
-    print(databases)
+        print(role, privileges, selected_tables, grant_option)
+        
+        # Jika memilih ALL PRIVILEGES, kita set semua privileges
+        if 'ALL' in privileges:
+            privileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']
+        
+        # Untuk setiap tabel yang dipilih, buat query GRANT
+        grant_query = f"GRANT {', '.join(privileges)} ON TABLE {', '.join(selected_tables)} TO {role} {grant_option};"
+        try:
+            # Koneksi ke PostgreSQL
+            cur = conn.cursor()
+            cur.execute(grant_query)
+            conn.commit()
+            cur.close()
+            conn.close()
 
-    data = {
-        "title": f"Grant Role {role_name}",
-        "databases": databases,
-        "role_name": role_name
-    }
+            flash(f"GRANT query executed: {grant_query}", 'success')
+        except Exception as e:
+            flash(f"Error executing query: {e}", 'danger')
 
-    return render_template('pages/grants/roles/grant.html', data=data)
+        return redirect(f'/databases/{db_name}/grant?role={role}')
 
-# Memberikan Grant dan Revoke permission ke role
-@app.route('/roles/<role_name>/<db_name>/<type>', methods=['GET'])
-def grant_revoke_role(role_name, db_name, type):
-    conn = create_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-
+    # Jika request adalah GET, tampilkan form untuk grant permissions
     try:
-        if type == "grant":
-            cursor.execute("GRANT ALL PRIVILEGES ON DATABASE %s TO %s", (db_name, role_name))
-        else:
-            cursor.execute("REVOKE ALL PRIVILEGES ON DATABASE %s FROM %s", (db_name, role_name))
+        cursor.execute("SELECT rolname FROM pg_roles WHERE rolname not like 'pg_%' and rolsuper = false;")
+        roles = cursor.fetchall()
 
-        conn.commit()
-        flash(f"Role {role_name} {type}ed to {db_name} successfully", "success")
+        role = request.args.get('role')  # Ambil role dari parameter URL
+        if role:
+            # Ambil privileges dan tabel yang dimiliki oleh role
+            cursor.execute("""
+                SELECT 
+                    grantee, 
+                    table_name,
+                    privilege_type
+                FROM 
+                    information_schema.role_table_grants
+                WHERE 
+                    grantee = %s AND table_schema = 'public';
+            """, (role,))
+            
+            privileges_data = cursor.fetchall()
+
+            # Ambil daftar tabel yang ada di schema public
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables
+                WHERE table_schema = 'public';
+            """)
+            tables_data = cursor.fetchall()
+
+            # Set privilege yang dimiliki role
+            privileges = [priv['privilege_type'] for priv in privileges_data]
+            # Set tabel yang dapat diakses oleh role
+            accessible_tables = [priv['table_name'] for priv in privileges_data]
+
+            conn.close()
+
+            # Pass data ke template
+            data = {
+                "title": f"Grant Permissions to {db_name}",
+                "db_name": db_name,
+                "roles": roles,
+                "privileges": privileges,
+                "tables": tables_data,
+                "accessible_tables": accessible_tables  # Menambahkan daftar tabel yang dapat diakses
+            }
+            return render_template('pages/databases/grant.html', data=data)
+
+        # Ambil semua tabel jika belum ada role yang dipilih
+        cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
+        tables = cursor.fetchall()
+
+        conn.close()
+        return render_template('pages/databases/grant.html', data={
+            "title": f"Grant Permissions to {db_name}",
+            "db_name": db_name,
+            "roles": roles,
+            "tables": tables
+        })
+
     except Exception as e:
-        flash(f"Error: {e}", "danger")
-    finally:
-        cursor.close()
+        flash(f"Error fetching data: {e}", 'danger')
+        return redirect(url_for('databases'))
+
+@app.route('/databases/<db_name>/revoke', methods=['GET', 'POST'])
+def database_permission_revoke(db_name):
+    conn = create_connection(database_name=db_name)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    if request.method == 'POST':
+        # Ambil data dari form
+        role = request.form['role']  # Role yang dipilih
+        privileges = request.form.getlist('privileges')  # Privileges yang dipilih
+        selected_tables = request.form.getlist('tables')  # Tabel yang dipilih
+        
+        # Jika memilih ALL PRIVILEGES, kita set semua privileges
+        if 'ALL' in privileges:
+            privileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']
+        
+        # Untuk setiap tabel yang dipilih, buat query REVOKE
+        revoke_query = f"REVOKE {', '.join(privileges)} ON TABLE {', '.join(selected_tables)} FROM {role};"
+        try:
+            # Koneksi ke PostgreSQL
+            cur = conn.cursor()
+            cur.execute(revoke_query)
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            flash(f"REVOKE query executed: {revoke_query}", 'success')
+        except Exception as e:
+            flash(f"Error executing query: {e}", 'danger')
+
+        return redirect(f'/databases/{db_name}/revoke?role={role}')
+
+    # Jika request adalah GET, tampilkan form untuk revoke permissions
+    try:
+        cursor.execute("SELECT rolname FROM pg_roles WHERE rolname not like 'pg_%' and rolsuper = false;")
+        roles = cursor.fetchall()
+
+        role = request.args.get('role')  # Ambil role dari parameter URL
+        if role:
+            # Ambil privileges dan tabel yang dimiliki oleh role
+            cursor.execute("""
+                SELECT 
+                    grantee, 
+                    table_name,
+                    privilege_type
+                FROM 
+                    information_schema.role_table_grants
+                WHERE 
+                    grantee = %s AND table_schema = 'public';
+            """, (role,))
+            
+            privileges_data = cursor.fetchall()
+
+            # Ambil daftar tabel yang ada di schema public
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables
+                WHERE table_schema = 'public';
+            """)
+            tables_data = cursor.fetchall()
+
+            # Set privilege yang dimiliki role
+            privileges = [priv['privilege_type'] for priv in privileges_data]
+            # Set tabel yang dapat diakses oleh role
+            accessible_tables = [priv['table_name'] for priv in privileges_data]
+
+            conn.close()
+
+            # Pass data ke template
+            data = {
+                "title": f"Revoke Permissions to {db_name}",
+                "db_name": db_name,
+                "roles": roles,
+                "privileges": privileges,
+                "tables": tables_data,
+                "accessible_tables": accessible_tables  # Menambahkan daftar tabel yang dapat diakses
+            }
+            return render_template('pages/databases/revoke.html', data=data)
+
+        # Ambil semua tabel jika belum ada role yang dipilih
+        cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
+        tables = cursor.fetchall()
+
+        conn.close()
+        return render_template('pages/databases/revoke.html', data={
+            "title": f"Revoke Permissions to {db_name}",
+            "db_name": db_name,
+            "roles": roles,
+            "tables": tables
+        })
+
+    except Exception as e:
+        flash(f"Error fetching data: {e}", 'danger')
+        return redirect(url_for('databases'))
+
+@app.route('/roles/<role_name>/grant', methods=['GET', 'POST'])
+def role_permission_grant(role_name):
+    try:
+        conn = create_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Ambil daftar privileges yang umum
+        privileges = ['ALL', 'CREATE', 'CONNECT', 'TEMPORARY']
+
+        # Ambil database yang dapat diakses
+        cursor.execute("""
+            SELECT datname
+            FROM pg_database
+            WHERE datistemplate = false and datname != 'postgres';
+        """)
+        databases = cursor.fetchall()
+
+        # Ambil hak akses untuk role terhadap database (untuk semua database)
+        cursor.execute("""
+            SELECT 
+                r.rolname AS role,
+                d.datname AS database,
+                pg_catalog.has_database_privilege(r.rolname, d.datname, 'CONNECT') AS can_connect,
+                pg_catalog.has_database_privilege(r.rolname, d.datname, 'CREATE') AS can_create,
+                pg_catalog.has_database_privilege(r.rolname, d.datname, 'TEMPORARY') AS can_use_temp_tables
+            FROM 
+                pg_catalog.pg_roles r
+            JOIN 
+                pg_catalog.pg_database d ON pg_catalog.has_database_privilege(r.rolname, d.datname, 'CONNECT')
+            WHERE 
+                r.rolname = %s
+            ORDER BY 
+                role, database;
+        """, (role_name,))
+        role_privileges = cursor.fetchall()
+
+        # Untuk halaman POST, ambil data dari form
+        if request.method == 'POST':
+            role = role_name
+            privileges_selected = request.form.getlist('privileges')  # Privileges yang dipilih
+            database_name = request.form.get('database_name')  # Nama database yang dipilih
+            grant_option = 'WITH GRANT OPTION' if 'grant_option' in request.form else ''
+
+            # Buat query GRANT untuk role
+            if 'ALL' in privileges_selected:
+                privileges_selected = ['CREATE', 'CONNECT', 'TEMPORARY']
+
+            grant_query = f"GRANT {', '.join(privileges_selected)} ON DATABASE {database_name} TO {role} {grant_option};"
+
+            # Eksekusi query GRANT
+            cursor.execute(grant_query)
+            conn.commit()
+
+            flash(f"GRANT query executed: {grant_query}", 'success')
+            return redirect(url_for('role_permission', role_name=role_name))  # Redirect setelah submit
+
+        # Tutup koneksi
         conn.close()
 
-    return redirect('/roles/' + role_name + '/grant')
+        # Data yang akan dikirimkan ke template
+        data = {
+            'title': f"Grant Permissions for {role_name}",
+            'role_name': role_name,
+            'privileges': privileges,
+            'databases': databases,
+            'role_privileges': role_privileges  # Data hak akses role terhadap database
+        }
 
+        return render_template('pages/roles/grant.html', data=data)
 
-# Memberikan grant permission ke user
-@app.route('/users/<username>/grant', methods=['GET', 'POST'])
-def grant_user(username):
-    if request.method == 'POST':
-        db_name = request.form['db_name']
+    except Exception as e:
+        flash(f"Error: {e}", 'danger')
+        return redirect(url_for('roles'))  # Ganti 'home' dengan rute yang sesuai jika terjadi error
+
+@app.route('/roles/<role_name>/revoke', methods=['GET', 'POST'])
+def role_permission_revoke(role_name):
+    try:
         conn = create_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        try:
-            cursor.execute(f"GRANT {username} TO {db_name}")
+        # Ambil daftar privileges yang umum
+        privileges = ['ALL', 'CREATE', 'CONNECT', 'TEMPORARY']
+
+        # Ambil database yang dapat diakses
+        cursor.execute("""
+            SELECT datname
+            FROM pg_database
+            WHERE datistemplate = false and datname != 'postgres';
+        """)
+        databases = cursor.fetchall()
+
+        # Ambil hak akses untuk role terhadap database (untuk semua database)
+        cursor.execute("""
+            SELECT 
+                r.rolname AS role,
+                d.datname AS database,
+                pg_catalog.has_database_privilege(r.rolname, d.datname, 'CONNECT') AS can_connect,
+                pg_catalog.has_database_privilege(r.rolname, d.datname, 'CREATE') AS can_create,
+                pg_catalog.has_database_privilege(r.rolname, d.datname, 'TEMPORARY') AS can_use_temp_tables
+            FROM 
+                pg_catalog.pg_roles r
+            JOIN 
+                pg_catalog.pg_database d ON pg_catalog.has_database_privilege(r.rolname, d.datname, 'CONNECT')
+            WHERE 
+                r.rolname = %s
+            ORDER BY 
+                role, database;
+        """, (role_name,))
+        role_privileges = cursor.fetchall()
+
+        # Untuk halaman POST, ambil data dari form
+        if request.method == 'POST':
+            role = request.form.get('role')  # Role yang dipilih
+            privileges_selected = request.form.getlist('privileges')  # Privileges yang dipilih
+            database_name = request.form.get('database_name')  # Nama database yang dipilih
+
+            # Buat query REVOKE untuk role
+            if 'ALL' in privileges_selected:
+                privileges_selected = ['CREATE', 'CONNECT', 'TEMPORARY']
+
+            revoke_query = f"REVOKE {', '.join(privileges_selected)} ON DATABASE {database_name} FROM {role};"
+
+            # Eksekusi query REVOKE
+            cursor.execute(revoke_query)
             conn.commit()
-            flash(f"User {username} granted to {db_name} successfully", "success")
-            return redirect(url_for('users'))
-        except Exception as e:
-            flash(str(e), "danger")
-        finally:
-            cursor.close()
-            conn.close()
 
-    conn = create_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT datname FROM pg_database WHERE datname NOT IN ('template0', 'template1')")
-    databases = cursor.fetchall()
-    cursor.close()
-    conn.close()
+            flash(f"REVOKE query executed: {revoke_query}", 'success')
+            return redirect(url_for('role_permission', role_name=role_name))  # Redirect setelah submit
 
-    data = {
-        "title": f"Grant User {username}",
-        "databases": databases
-    }
+        # Tutup koneksi
+        conn.close()
 
-    return render_template('pages/users/grant.html', data=data)
+        # Data yang akan dikirimkan ke template
+        data = {
+            'title': f"Revoke Permissions for {role_name}",
+            'role_name': role_name,
+            'privileges': privileges,
+            'databases': databases,
+            'role_privileges': role_privileges  # Data hak akses role terhadap database
+        }
 
-# Memberikan grant permission ke role SELECT, UPDATE, DELETE, INSERT
-@app.route('/roles/<role_name>/grant/permission', methods=['GET', 'POST'])
-def grant_role_permission(role_name):
-    if request.method == 'POST':
-        db_name = request.form['db_name']
-        table_name = request.form['table_name']
-        permission = request.form['permission']
-        conn = create_connection()
-        cursor = conn.cursor()
+        return render_template('pages/roles/revoke.html', data=data)
 
-        try:
-            cursor.execute(f"GRANT {permission} ON {table_name} TO {role_name}")
-            conn.commit()
-            flash(f"Permission {permission} granted to {role_name} on {table_name} successfully", "success")
-            return redirect(url_for('roles'))
-        except Exception as e:
-            flash(str(e), "danger")
-        finally:
-            cursor.close()
-            conn.close()
-
-    conn = create_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT datname FROM pg_database WHERE datname NOT IN ('template0', 'template1')")
-    databases = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    data = {
-        "title": f"Grant Permission to Role {role_name}",
-        "databases": databases
-    }
-
-    return render_template('pages/roles/permission.html', data=data)
-
-# Memberikan grant permission ke user SELECT, UPDATE, DELETE, INSERT
-@app.route('/users/<username>/grant/permission', methods=['GET', 'POST'])
-def grant_user_permission(username):
-    if request.method == 'POST':
-        db_name = request.form['db_name']
-        table_name = request.form['table_name']
-        permission = request.form['permission']
-        conn = create_connection()
-        cursor = conn.cursor()
-
-        try:
-            cursor.execute(f"GRANT {permission} ON {table_name} TO {username}")
-            conn.commit()
-            flash(f"Permission {permission} granted to {username} on {table_name} successfully", "success")
-            return redirect(url_for('users'))
-        except Exception as e:
-            flash(str(e), "danger")
-        finally:
-            cursor.close()
-            conn.close()
-
-    conn = create_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT datname FROM pg_database WHERE datname NOT IN ('template0', 'template1')")
-    databases = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    data = {
-        "title": f"Grant Permission to User {username}",
-        "databases": databases
-    }
-
-    return render_template('pages/users/permission.html', data=data)
-
-# Agar role tertentu bisa melihat beberapa table saja sesuai dengan permission yang diberikan
-@app.route('/roles/<role_name>/grant/table', methods=['GET', 'POST'])
-def grant_role_table(role_name):
-    if request.method == 'POST':
-        db_name = request.form['db_name']
-        table_name = request.form['table_name']
-        conn = create_connection()
-        cursor = conn.cursor()
-
-        try:
-            cursor.execute(f"GRANT USAGE ON SCHEMA public TO {role_name}")
-            cursor.execute(f"GRANT SELECT ON {table_name} TO {role_name}")
-            conn.commit()
-            flash(f"Role {role_name} granted to {table_name} successfully", "success")
-            return redirect(url_for('roles'))
-        except Exception as e:
-            flash(str(e), "danger")
-        finally:
-            cursor.close()
-            conn.close()
-
-    conn = create_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT datname FROM pg_database WHERE datname NOT IN ('template0', 'template1')")
-    databases = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    data = {
-        "title": f"Grant Role {role_name} to Table",
-        "databases": databases
-    }
-
-    return render_template('pages/roles/table.html', data=data)
+    except Exception as e:
+        flash(f"Error: {e}", 'danger')
+        return redirect(url_for('roles'))  # Ganti 'home' dengan rute yang sesuai jika terjadi error
 
 if __name__ == '__main__':
     app.run(debug=True)
