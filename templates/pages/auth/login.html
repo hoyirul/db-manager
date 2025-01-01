@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-  <title>Sidebar 01</title>
+  <title>DB-Manager | CV. Ika Raya Sentausa</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
@@ -30,7 +30,7 @@
         {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('login') }}">
+        <form method="POST" action="/login">
           <!-- CSRF Token -->
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <!-- Host, port, database default postgres, username, password -->

@@ -1,0 +1,100 @@
+{% extends 'layouts/main.html' %}
+
+{% block content %}
+  <div class="clearfix">
+    <h2 class="float-left mb-2">{{ data.title }}</h2>
+    <a href="/databases" class="btn btn-primary float-right mb-2">Back</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form action="/databases/{{ data.db_name }}/grant" method="POST">
+    <!-- CSRF Token -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
+    <!-- Role Selection -->
+    <div class="form-group">
+      <label for="role">Select Role</label>
+      <select name="role" id="role" class="form-control" required onchange="fetchRolePermissions()">
+        {% for role in data.roles %}
+          <option value="{{ role.rolname }}" {% if role.rolname == request.args.get('role') %}selected{% endif %}>{{ role.rolname }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Privileges Selection -->
+    <label>Privileges</label>
+    <div class="form-group">
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="ALL" id="all_privileges" {% if 'ALL' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="all_privileges">ALL PRIVILEGES</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="SELECT" id="select" {% if 'SELECT' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="select">SELECT</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="INSERT" id="insert" {% if 'INSERT' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="insert">INSERT</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="UPDATE" id="update" {% if 'UPDATE' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="update">UPDATE</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="DELETE" id="delete" {% if 'DELETE' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="delete">DELETE</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="TRUNCATE" id="truncate" {% if 'TRUNCATE' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="truncate">TRUNCATE</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="REFERENCES" id="references" {% if 'REFERENCES' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="references">REFERENCES</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input type="checkbox" class="form-check-input" name="privileges" value="TRIGGER" id="trigger" {% if 'TRIGGER' in data.privileges %}checked{% endif %}>
+        <label class="form-check-label" for="trigger">TRIGGER</label>
+      </div>
+    </div>
+
+    <!-- Tables Selection -->
+    <label>Tables</label>
+    <div class="form-group">
+      {% for table in data.tables %}
+        <div class="form-check form-check-inline">
+          <input type="checkbox" class="form-check-input" name="tables" value="{{ table.table_name }}" id="table_{{ loop.index }}" {% if table.table_name in data.accessible_tables %}checked{% endif %}>
+          <label class="form-check-label" for="table_{{ loop.index }}">{{ table.table_name }}</label>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Grant Option -->
+    <div class="form-group">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" name="grant_option" id="grant_option">
+        <label class="form-check-label" for="grant_option">WITH GRANT OPTION</label>
+      </div>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="submit" class="btn btn-primary">Grant Permission</button>
+  </form>
+  <script>
+    function fetchRolePermissions() {
+      const role = document.getElementById('role').value;
+      const url = new URL(window.location.href);
+      url.searchParams.set('role', role);  // Menambahkan parameter role ke URL
+      window.location.href = url;  // Reload halaman dengan parameter baru
+    }
+  </script>
+{% endblock %}

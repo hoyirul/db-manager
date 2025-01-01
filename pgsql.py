@@ -1,19 +1,48 @@
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, redirect, url_for, flash, session
-from middleware import AuthMiddleware
+from middlewares.middleware import AuthMiddleware
 from flask_wtf import CSRFProtect
 from flask_cors import CORS
+from utils.errors import ErrorHelper
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 # hex key untuk session
-app.secret_key = "secret_key"
+app.secret_key = os.getenv("SECRET_KEY")
 
 csrf = CSRFProtect(app)
 CORS(app, resources={r"/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "DELETE"])
 
 # Middleware untuk memeriksa apakah user sudah login atau belum
 auth = AuthMiddleware()
+
+# Session Globaly
+@app.context_processor
+def inject_session():
+    return dict(session=session)
+
+# Registrasi handler error
+errorHelper = ErrorHelper()
+@app.errorhandler(404)
+def not_found_error(error):
+    return errorHelper.not_found_error(error=error)
+
+@app.errorhandler(500)
+def internal_error(error):
+    return errorHelper.internal_error(error=error)
+
+@app.errorhandler(405)
+def method_not_allowed(error):
+    return errorHelper.method_not_allowed(error=error)
+
+@app.errorhandler(400)
+def bad_request(error):
+    return errorHelper.bad_request(error=error)
 
 # Fungsi untuk membuat koneksi ke database PostgreSQL
 def create_connection(database_name=None):
@@ -226,8 +255,8 @@ def edit_user(username):
 
     return render_template('pages/users/edit.html', data=data)
 
-
 @app.route('/roles', methods=['GET', 'POST'])
+@auth.authorized
 def roles():
     conn = create_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -245,6 +274,7 @@ def roles():
     return render_template('pages/roles/index.html', data=data)
 
 @app.route('/databases', methods=['GET', 'POST'])
+@auth.authorized
 def databases():
     if request.method == 'POST':
         db_name = request.form['db_name']
@@ -279,6 +309,7 @@ def databases():
     return render_template('pages/databases/index.html', data=data)
 
 @app.route('/databases/create', methods=['GET', 'POST'])
+@auth.authorized
 def create_database():
     if request.method == 'POST':
         print(request.form)
@@ -318,6 +349,7 @@ def create_database():
 
 # Menampilkan table yang ada di database
 @app.route('/databases/<db_name>/tables', methods=['GET'])
+@auth.authorized
 def tables(db_name):
     conn = psycopg2.connect(
         host="localhost",
@@ -341,6 +373,7 @@ def tables(db_name):
 
 # Menampilkan kolom yang ada di table
 @app.route('/databases/<db_name>/tables/<table_name>/columns', methods=['GET'])
+@auth.authorized
 def columns(db_name, table_name):
     conn = psycopg2.connect(
         host=session['host'],
@@ -368,6 +401,7 @@ def columns(db_name, table_name):
 
 
 @app.route('/databases/<db_name>/grant', methods=['GET', 'POST'])
+@auth.authorized
 def database_permission_grant(db_name):
     conn = create_connection(database_name=db_name)
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -464,6 +498,7 @@ def database_permission_grant(db_name):
         return redirect(url_for('databases'))
 
 @app.route('/databases/<db_name>/revoke', methods=['GET', 'POST'])
+@auth.authorized
 def database_permission_revoke(db_name):
     conn = create_connection(database_name=db_name)
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -557,6 +592,7 @@ def database_permission_revoke(db_name):
         return redirect(url_for('databases'))
 
 @app.route('/roles/<role_name>/grant', methods=['GET', 'POST'])
+@auth.authorized
 def role_permission_grant(role_name):
     try:
         conn = create_connection()
@@ -631,6 +667,7 @@ def role_permission_grant(role_name):
         return redirect(url_for('roles'))  # Ganti 'home' dengan rute yang sesuai jika terjadi error
 
 @app.route('/roles/<role_name>/revoke', methods=['GET', 'POST'])
+@auth.authorized
 def role_permission_revoke(role_name):
     try:
         conn = create_connection()
@@ -704,4 +741,18 @@ def role_permission_revoke(role_name):
         return redirect(url_for('roles'))  # Ganti 'home' dengan rute yang sesuai jika terjadi error
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Mendapatkan nilai dari variabel lingkungan
+    app_name = os.getenv("APP_NAME")
+    debug_mode = os.getenv("APP_ENV")
+    host_ip = os.getenv("APP_HOST")
+    app_port = os.getenv("APP_PORT")  # Menambah variabel untuk port
+
+    # Menentukan host dan port berdasarkan mode (development/production)
+    if debug_mode == 'development':
+        host = host_ip
+        port = 5000 if app_port is None else int(app_port)
+    else:
+        host = host_ip
+        port = 80 if app_port is None else int(app_port)
+
+    app.run(debug = True if debug_mode == 'development' else False, host=host, port=port)

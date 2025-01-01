@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='assets/images/logos/new-favicon.png') }}" /> -->
+  <title>Error {{ e.code }} - {{ e.message }}</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* CSS untuk konten di tengah layar */
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #f8f9fa; /* Ganti dengan warna latar belakang yang diinginkan */
+    }
+
+    .error-message {
+        text-align: center;
+        background-color: transparent;
+        padding: 20px;
+    }
+
+    h1, h2{
+      font-weight: bold;
+      font-size: 30pt;
+      color: #f43f5e;
+    }
+
+    p{
+      font-size: 13pt;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="error-message">
+    <h1>{{ e.code }}</h1>
+    <h2>{{ e.message }}</h2>
+    <p>{{ e.description }}</p>
+    <!-- Tombol kembali ke halaman sebelumnya (Opsional) -->
+    <a href="javascript:history.go(-1)" class="btn btn-primary">Kembali</a>
+  </div>
+</body>
+
+</html>

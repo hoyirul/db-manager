@@ -2,8 +2,10 @@
 
 {% block content %}
   <!-- make title and button for hyperlink -->
-  <h2 class="mb-4 float-left">{{ data.title }}</h2>
-  <a href="/databases/create" class="btn btn-primary float-right">Create Database</a>
+  <div class="clearfix">
+    <h2 class="mb-4 float-left">{{ data.title }}</h2>
+    <a href="/databases/create" class="btn btn-primary float-right">Create Database</a>
+  </div>
   <!-- flash -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -29,18 +31,10 @@
           <td>{{ item['datname'] }}</td>
           <td>
             <a href="/databases/{{ item['datname'] }}/tables" class="btn btn-sm btn-info">Tables</a>
-            {% if item['datname'] != 'postgres' %}
-              <!-- with form POST -->
-              <form action="/databases" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?')">
-                <!-- CSRF Token -->
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="db_name" value="{{ item['datname'] }}">
-                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-              </form>
-            {% else %}
-              <span class="badge text-white px-4 py-2 bg-secondary">Default</span>
+            {% if item['datname'] != 'postgres'  %}
+              <a href="/databases/{{ item['datname'] }}/grant" class="btn btn-sm btn-success">GRANT</a>
+              <a href="/databases/{{ item['datname'] }}/revoke" class="btn btn-sm btn-danger">REVOKE</a>
             {% endif %}
-
           </td>
         </tr>
       {% else %}
