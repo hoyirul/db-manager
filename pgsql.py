@@ -6,6 +6,7 @@ from flask_wtf import CSRFProtect
 from flask_cors import CORS
 from utils.errors import ErrorHelper
 from dotenv import load_dotenv
+import bcrypt
 import os
 
 # Load environment variables from .env file
@@ -59,6 +60,10 @@ def create_connection(database_name=None):
 @auth.unauthorized
 def login():
     if request.method == 'POST':
+        # make token_key with bcrypt
+        if not bcrypt.checkpw(request.form['token'].encode(), os.getenv("TOKEN_KEY").encode()):
+            flash("YOUR TOKEN IS INVALID", "danger")
+            return render_template('pages/auth/login.html')
         try:
             host = request.form['host']
             port = request.form['port']
@@ -352,10 +357,11 @@ def create_database():
 @auth.authorized
 def tables(db_name):
     conn = psycopg2.connect(
-        host="localhost",
+        # with session
+        host=session['host'],
         database=db_name,
-        user="mochammadhairullah",
-        password="password"
+        user=session['username'],
+        password=session['password']
     )
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
@@ -646,7 +652,7 @@ def role_permission_grant(role_name):
             conn.commit()
 
             flash(f"GRANT query executed: {grant_query}", 'success')
-            return redirect(url_for('role_permission', role_name=role_name))  # Redirect setelah submit
+            return redirect(url_for('role_permission_grant', role_name=role_name))  # Redirect setelah submit
 
         # Tutup koneksi
         conn.close()
@@ -714,13 +720,14 @@ def role_permission_revoke(role_name):
                 privileges_selected = ['CREATE', 'CONNECT', 'TEMPORARY']
 
             revoke_query = f"REVOKE {', '.join(privileges_selected)} ON DATABASE {database_name} FROM {role};"
+            print(revoke_query)
 
             # Eksekusi query REVOKE
             cursor.execute(revoke_query)
             conn.commit()
 
             flash(f"REVOKE query executed: {revoke_query}", 'success')
-            return redirect(url_for('role_permission', role_name=role_name))  # Redirect setelah submit
+            return redirect(url_for('role_permission_revoke', role_name=role_name))  # Redirect setelah submit
 
         # Tutup koneksi
         conn.close()

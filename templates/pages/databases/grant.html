@@ -1,8 +1,12 @@
 {% extends 'layouts/main.html' %}
 
+{% block styles %}
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.2.2/css/dataTables.bootstrap4.css">
+{% endblock %}
+
 {% block content %}
   <div class="clearfix">
-    <h2 class="float-left mb-2">{{ data.title }}</h2>
+    <h2 class="float-left mb-3">{{ data.title }}</h2>
     <a href="/databases" class="btn btn-primary float-right mb-2">Back</a>
   </div>
 
@@ -16,6 +20,10 @@
     {% endif %}
   {% endwith %}
 
+  <div class="alert alert-danger" role="alert">
+    <strong>IMPORTANT!</strong> Please checked the checkbox for the tables and privileges that you want to grant permission.
+  </div>
+
   <form action="/databases/{{ data.db_name }}/grant" method="POST">
     <!-- CSRF Token -->
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -24,6 +32,7 @@
     <div class="form-group">
       <label for="role">Select Role</label>
       <select name="role" id="role" class="form-control" required onchange="fetchRolePermissions()">
+        <option value="">Select Role</option>
         {% for role in data.roles %}
           <option value="{{ role.rolname }}" {% if role.rolname == request.args.get('role') %}selected{% endif %}>{{ role.rolname }}</option>
         {% endfor %}
@@ -69,14 +78,22 @@
 
     <!-- Tables Selection -->
     <label>Tables</label>
-    <div class="form-group">
+    <table id="example" class="table table-striped table-bordered" style="width:100%">
+      <thead>
+          <tr>
+            <th width="50px">#</th>
+            <th>Table</th>
+          </tr>
+      </thead>
+      <tbody>
       {% for table in data.tables %}
-        <div class="form-check form-check-inline">
-          <input type="checkbox" class="form-check-input" name="tables" value="{{ table.table_name }}" id="table_{{ loop.index }}" {% if table.table_name in data.accessible_tables %}checked{% endif %}>
-          <label class="form-check-label" for="table_{{ loop.index }}">{{ table.table_name }}</label>
-        </div>
+      <tr>
+        <td class="text-center"><input type="checkbox" name="tables" value="{{ table.table_name }}" id="table_{{ loop.index }}" {% if table.table_name in data.accessible_tables %}checked{% endif %}></td>
+        <td><label for="table_{{ loop.index }}">{{ table.table_name }}</label></td>
+      </tr>
       {% endfor %}
-    </div>
+      </tbody>
+    </table>
 
     <!-- Grant Option -->
     <div class="form-group">
@@ -89,7 +106,14 @@
     <!-- Submit Button -->
     <button type="submit" class="btn btn-primary">Grant Permission</button>
   </form>
+
+{% endblock %}
+{% block scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script>
+  <script src="https://cdn.datatables.net/2.2.2/js/dataTables.js"></script>
+  <script src="https://cdn.datatables.net/2.2.2/js/dataTables.bootstrap4.js"></script>
   <script>
+    new DataTable('#example');
     function fetchRolePermissions() {
       const role = document.getElementById('role').value;
       const url = new URL(window.location.href);
